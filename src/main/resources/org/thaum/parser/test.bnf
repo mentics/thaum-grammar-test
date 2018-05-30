@@ -1,0 +1,111 @@
+topLevelExprs = 1*(*ws topLevelExpr *ws)
+topLevelExpr = (ModuleDecl / UsingExpr / FunctionDefinition / Binding)
+
+;; Module ;;
+ModuleDecl = modPrefix 1*ws ModuleName *ws [MetaSpec *ws] ((startBlock *ws topLevelExprs *ws endBlock) / endExpr)
+ModuleName = modulePart *(moduleDelim ModulePart)
+ModulePart = identifier
+moduleDelim = "."
+
+
+;; Using ;;
+UsingExpr = usingPrefix 1*ws "usingexpr" ; TODO
+
+
+;; Types ;;
+
+Record = RecordName *ws (typePrefix / concreteMetaSpec) *ws startBlock *(Field endField) endBlock
+Union = UnionName *ws typePrefix *ws identifier *ws *(OrType *ws identifier)
+Enum = EnumName *ws startList *ws *(Symbol *ws [ConstructorCall] *ws endField) *ws endList
+RecordName = identifier
+UnionName = identifier
+EnumName = identifier
+Field = Symbol *ws TypeSpec
+endField = listDelim / endExpr
+
+TypeSpec = identifier ; TODO
+MetaSpec = identifier ; TODO
+TypeAnnot = typePrefix *ws TypeSpec
+MetaAnnot = metaPrefix *ws MetaSpec
+annot = [TypeAnnot] *ws [MetaAnnot]
+
+
+;; Function Definition ;;
+; Is there any reason to support fall through pattern matching?
+FunctionDefinition = FunctionName *ws [TypeAnnot] *ws [MetaAnnot] *ws [startBlock] *ws 1*(Assignment *ws) *ws [endBlock]
+FunctionName = identifier
+
+
+;; Expressions ;;
+
+Expr = (GroupExpr / exprOptions) [*ws TypeAnnot]
+GroupExpr = openParen *ws allExpr *ws closeParen
+Code = codeBlock / Expr
+codeBlock = startBlock *ws 1*(closedExpr *ws) *ws endBlock
+closedExpr = Expr *ws endExpr
+
+allExpr = specialExprOptions / exprOptions
+specialExprOptions = Binding / Assignment / UsingExpr / controlExpr
+exprOptions = FunctionCall / ConstructorCall / infixOperation / literal / identifier
+infixOperation = ArithmeticAndSuch / SpecialInfixWeirdnessThatImSureIsaacWants
+controlExpr = IfExpr / WhileLoop
+
+Binding = patternMatch *ws bindingOper *ws Code
+Assignment = patternMatch *ws assignmentOper *ws Code
+AssignmentInPlace = patternMatch *ws inPlaceAssignOper *ws Code
+FunctionCall = FunctionName *ws Arguments
+ConstructorCall = ConstructorName *ws Arguments ; TODO
+ConstructorName = identifier
+Arguments = 1*((codeBlock / Expr) *ws)
+IfExpr = if *ws Code *ws then *ws Code *ws [else *ws Code]
+WhileLoop = while *ws Code *ws Code
+
+
+;; Pattern Matching ;;
+
+patternMatch = IgnoreMatch / IdentifierMatch / LiteralMatch / MatchRecord / MatchList / MatchMap
+IdentifierMatch = identifier
+LiteralMatch = Literal
+MatchList = startList *ws (listMatchParts / empty) *ws endList
+MatchRecord = startTuple *ws (mapMatchParts / empty) *ws endTuple
+MatchMap = startMap *ws mapMatchParts *ws endMap
+
+listMatchParts = patternMatch *(*ws listDelim *ws patternMatch)
+MapMatchPart = identifier *ws mapAssociator *ws patternMatch
+mapMatchParts = MapMatchPart *(*ws mapDelim *ws MapMatchPart)
+
+
+;; Basic ;;
+
+lineComment = *wsOnly lineCommentPrefix *vchar lineEnd
+blockComment = startBlockComment *vchar endBlockComment
+
+identifierFirstChar = alpha / "_"
+identifierChar = identifierFirstChar / digit
+
+normalIdentifier = identifierFirstChar *identifierChar 
+quotedIdentifier = "`" 1*vchar "`"
+identifier = normalIdentifier / quotedIdentifier
+Symbol = identifier ; TODO: Do we have to prefix it with something?
+
+
+;; Literals ;;
+
+Literal = NumericLiteral / StringLiteral / ListLiteral / MapLiteral / TupleLiteral
+
+NumericLiteral = (("." / digit) *("." / digit))
+AsciiLiteral = "'" *char "'"
+UnicodeLiteral = dquote vchar dquote
+StringLiteral = AsciiLiteral / UnicodeLiteral
+
+ListLiteral = startList *ws (ExprList / empty) *ws endList [*ws TypeSpec]
+TupleLiteral = startTuple *ws (ExprList / empty) *ws endTuple
+MapLiteral = startMap *ws mapList *ws endMap [*ws TypeSpec]
+mapList = MapExpr *(*ws listDelim *ws MapExpr)
+
+ExprList = Expr *(*ws listDelim *ws Expr)  ; Should these be CodeBlock's?
+MapExpr = Expr *ws mapAssociator *ws Expr ; Should these be CodeBlock's?
+
+;; Other ;;
+
+concreteMetaSpec = "TODO:3"

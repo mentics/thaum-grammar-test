@@ -1,0 +1,172 @@
+top = 1*(*ws exprTop *ws)
+exprTop = ModuleDecl / UsingExpr / FunctionDefinition / (ExprBind *ws endExpr)
+
+;; Module ;;
+ModuleDecl = preMod 1*ws ModuleName *ws [MetaAnnot *ws] ((startBlock *ws top *ws endBlock) / endExpr)
+ModuleName = modulePart *(moduleDelim ModulePart)
+ModulePart = identifier
+
+
+;; Using ;;
+UsingExpr = preUsing 1*ws "usingexpr" ; TODO
+
+
+;; Types ;;
+
+Record = RecordName *ws typePrefix *ws startBlock *(Field endField) endBlock
+Union = UnionName *ws typePrefix *ws identifier *ws *(OrType *ws Identifier)
+Enum = EnumName *ws startList *ws *(Symbol *ws [Constructor] *ws endField) *ws endList
+RecordName = identifier
+UnionName = identifier
+EnumName = identifier
+Field = Symbol *ws TypeSpec
+Symbol = Identifier
+endField = listDelim / endExpr
+
+TypeSpec = Identifier ; TODO
+MetaSpec = Identifier ; TODO
+TypeAnnot = typePrefix *ws TypeSpec
+MetaAnnot = metaPrefix *ws MetaSpec
+annot = [TypeAnnot] *ws [MetaAnnot]
+
+
+;; Function Definition ;;
+; Is there any reason to support fall through pattern matching?
+FunctionDefinition = Identifier *ws annot *ws FunctionBlock
+functionBlock = startBlock *ws *(ExprAssign *ws endExpr *ws) [ExprAssign] *ws endBlock ; the last statement does not have to be "closed" with endExpr
+
+
+;; Expressions ;;
+
+code = CodeBlock / expr
+
+stmt = CodeBlock / (expr *ws endExpr) ; Something that needs to be closed: with an end of expression or close of block
+CodeBlock = startBlock *ws *(stmt *ws) [expr] *ws endBlock ; the last statement does not have to be "closed" with endExpr
+
+expr = value
+value = exprInfix / valueNotInfix
+valueNotInfix = Call / Constructor / exprIsolated 
+exprIsolated = ExprGroup / CodeBlock / literal / Identifier
+ExprGroup = openParen *ws value *ws closeParen
+
+Call = Identifier *ws Arguments
+Constructor = Identifier *ws Arguments
+Arguments = 1*((CodeBlock / exprIsolated) *ws)
+
+
+;; Control Expressions ;;
+
+controlExpr = IfExpr / WhileLoop
+IfExpr = if *ws (CodeBlock / value) *ws then *ws stmt *ws [else *ws stmt]
+WhileLoop = while *ws (CodeBlock / value) *ws stmt
+
+
+;; Infix Expressions ;;
+
+exprInfix = ExprAction / ExprCompare / ExprRepeat
+
+exprPrec3 = ExprAction / ExprRepeat / valueNotInfix
+exprPrec2 = ExprRepeat / valueNotInfix
+exprPrec1 = valueNotInfix
+ExprCompare = exprPrec3 *ws opsCompare *ws exprPrec3
+ExprAction = matchPattern *ws opsAction *ws exprPrec2
+ExprRepeat = exprPrec1 1*(*ws opsRepeat *ws exprPrec1)
+
+ExprAssign = matchPattern *ws opAssign *ws exprPrec2
+ExprBind = matchPattern *ws opBind *ws exprPrec2
+
+;; Pattern Matching ;;
+
+matchPattern = MatchIgnore / Identifier / MatchLiteral / MatchRecord / MatchList / MatchMap
+MatchList = startList *ws (listMatchParts / empty) *ws endList
+MatchRecord = startTuple *ws (mapMatchParts / empty) *ws endTuple
+MatchMap = startMap *ws mapMatchParts *ws endMap
+MatchLiteral = basicLiteral
+
+listMatchParts = matchPattern *(*ws listDelim *ws matchPattern)
+MapMatchPart = identifier *ws mapAssociator *ws matchPattern
+mapMatchParts = MapMatchPart *(*ws mapDelim *ws MapMatchPart)
+
+
+;; Literals ;;
+
+basicLiteral = LitNumber / LitAsciiString / LitUnicodeString
+literal = basicLiteral / LitList / LitMap / LitTuple
+
+LitNumber = (("." / digit) *("." / digit))
+LitAsciiString = "'" *charNoSQ "'"
+LitUnicodeString = dquote *charNoDQ dquote
+
+LitList = startList *ws (exprList / empty) *ws endList ; [*ws TypeSpec]
+LitTuple = startTuple *ws (exprList / empty) *ws endTuple
+LitMap = startMap *ws mapList *ws endMap ; [*ws TypeSpec]
+
+exprList = value *(*ws listDelim *ws value)
+mapList = exprMap *(*ws listDelim *ws exprMap)
+exprMap = exprPrec1 *ws mapAssociator *ws exprPrec1
+
+
+;; Reserved Words and Symbols ;;
+
+identifierFirstChar = alpha / "_"
+identifierChar = identifierFirstChar / digit
+Identifier = identifierFirstChar *identifierChar
+
+empty = ""
+alpha  = %d65-90 / %d97-122     ; upper or lower case letters
+digit  = %d48-57                ; digits 0-9
+ws     = %d32 / %d9 ; TODO: this one might allow newlines
+wsOnly = %d32 / %d9 ; TODO
+any    = %d32-126 / %d9 ; TODO
+charNoDQ =  %x00-21 / %x23-FF ; TODO
+charNoSQ = %x00-26 / %x28-FF ; TODO
+dquote =  %x22  ; " (Double Quote)
+
+endExpr = ";" ; We might need to allow a non-consuming match with startBlock because sometimes an expression can be ended by a start block
+typePrefix = ":"
+OrType = "|"
+metaPrefix = "::"
+openParen = "("
+closeParen = ")"
+startBlock = "{"
+endBlock = "}"
+startList = "["
+endList = "]"
+listDelim = ","
+startTuple = "("
+endTuple = ")"
+startMap = "["
+endMap = "]"
+mapAssociator = "="
+mapDelim = ","
+moduleDelim = "."
+MatchIgnore = "_"
+
+preMod = "module" ; TODO: case sensitive
+preUsing = "using" ; TODO: case sensitive
+if = "if" ; TODO: case sensitive
+then = "then" ; TODO: case sensitive
+else = "else" ; TODO: case sensitive
+while = "while" ; TODO: case sensitive
+
+opsAction = OpBind / OpInAssign / OpAssign
+OpBind = ":="
+OpInAssign = "@="
+OpAssign = "="
+
+opsCompare = OpEq / OpLess / OpMore
+OpEq = "=="
+OpLess = "<"
+OpMore = ">"
+
+opsRepeat = OpAdd / OpSubt / OpMult / OpDiv
+OpAdd = "+"
+OpSubt = "-"
+OpMult = "*"
+OpDiv = "/"
+
+lineCommentPrefix = "#"
+startBlockComment = "(#"
+endBlockComment = "#)"
+
+;lineEnd = %d13.10/%d10/%d13
