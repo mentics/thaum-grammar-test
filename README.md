@@ -1,3 +1,9 @@
+This project uses https://github.com/ldthomas/apg-java to generate a parser and test it. At the moment, I've pulled the APG project and this project and put them in the same eclipse workspace together so this can reference that one.
+
+Below are random notes.
+
+-----------------------
+
 ; TODO
 ;   generics (maybe just go in type spec)
 ;   lambdas
